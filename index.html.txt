@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>サバゲー記録ミニアプリ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>サバゲー記録</h1>
+  </header>
+
+  <!-- 画面切替タブ -->
+  <nav class="tabbar" role="tablist" aria-label="Main tabs">
+    <button class="tab active" data-target="#tab-record" aria-selected="true">KD記録</button>
+    <button class="tab" data-target="#tab-memo" aria-selected="false">メモ</button>
+    <button class="tab" data-target="#tab-timer" aria-selected="false">タイマー</button>
+    <button class="tab" data-target="#tab-analyze" aria-selected="false">分析</button>
+  </nav>
+
+  <main class="container">
+    <!-- KD記録 -->
+    <section id="tab-record" class="tabpanel active" role="tabpanel" aria-label="KD記録">
+      <h2>KD管理</h2>
+      <form id="gameForm" class="card">
+        <div class="row">
+          <label>日付</label>
+          <input type="date" id="gameDate" required>
+        </div>
+        <div class="row">
+          <label>タイトル（任意）</label>
+          <input type="text" id="gameTitle" placeholder="例：フィールドA_殲滅戦1">
+        </div>
+        <div class="row two">
+          <div>
+            <label>キル</label>
+            <input type="number" id="kills" min="0" inputmode="numeric" required>
+          </div>
+          <div>
+            <label>デス</label>
+            <input type="number" id="deaths" min="0" inputmode="numeric" required>
+          </div>
+        </div>
+        <button type="submit" class="btn primary">保存</button>
+      </form>
+
+      <section class="stats card" aria-live="polite">
+        <h3>集計</h3>
+        <div class="stats-grid">
+          <div><span class="label">合計キル</span><span id="totalKills" class="val">0</span></div>
+          <div><span class="label">合計デス</span><span id="totalDeaths" class="val">0</span></div>
+          <div><span class="label">平均キル</span><span id="avgKills" class="val">0.0</span></div>
+          <div><span class="label">平均デス</span><span id="avgDeaths" class="val">0.0</span></div>
+          <div class="wide"><span class="label">総合KD</span><span id="overallKD" class="val">0.00</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>過去のゲーム</h3>
+        <div id="gamesEmpty" class="muted">まだ記録がありません。</div>
+        <table id="gamesTable" class="list" aria-label="ゲーム記録一覧">
+          <thead>
+            <tr>
+              <th style="width:6.5em;">日付</th>
+              <th>タイトル</th>
+              <th style="width:4.5em;">K</th>
+              <th style="width:4.5em;">D</th>
+              <th style="width:5em;">KD</th>
+              <th style="width:3.5em;"></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </section>
+
+    <!-- メモ -->
+    <section id="tab-memo" class="tabpanel" role="tabpanel" aria-label="メモ">
+      <h2>メモ</h2>
+      <form id="memoForm" class="card">
+        <div class="row">
+          <label>日付</label>
+          <input type="date" id="memoDate" required>
+        </div>
+        <div class="row">
+          <label>タイトル</label>
+          <input type="text" id="memoTitle" placeholder="例：裏取りが刺さった場面など" required>
+        </div>
+        <div class="row">
+          <label>メモ</label>
+          <textarea id="memoBody" rows="5" placeholder="例：序盤は右サイドが手薄。足音を殺して前進、遮蔽物からチラ見で射線管理…"></textarea>
+        </div>
+        <button type="submit" class="btn primary">保存</button>
+      </form>
+
+      <section class="card">
+        <h3>過去のメモ</h3>
+        <div id="memosEmpty" class="muted">まだメモがありません。</div>
+        <ul id="memoList" class="memo-list" aria-label="メモ一覧"></ul>
+      </section>
+    </section>
+
+    <!-- タイマー -->
+    <section id="tab-timer" class="tabpanel" role="tabpanel" aria-label="タイマー">
+      <h2>ゲームタイマー</h2>
+      <section class="card">
+        <div class="row two">
+          <div>
+            <label>分</label>
+            <input type="number" id="minInput" min="0" inputmode="numeric" value="10">
+          </div>
+          <div>
+            <label>秒</label>
+            <input type="number" id="secInput" min="0" max="59" inputmode="numeric" value="0">
+          </div>
+        </div>
+
+        <div class="row">
+          <label class="switch">
+            <input type="checkbox" id="oneMinBeep" checked>
+            <span>残り1分でビープ</span>
+          </label>
+        </div>
+
+        <div class="timer-display" id="timerDisplay">10:00</div>
+
+        <div class="row three">
+          <button id="startBtn" class="btn primary">開始</button>
+          <button id="pauseBtn" class="btn">一時停止</button>
+          <button id="resetBtn" class="btn danger">リセット</button>
+        </div>
+
+        <p class="hint">※iOSの仕様上、「開始」ボタンを押した後のみ音が鳴ります。</p>
+
+        <!-- ビープ音：srcはJSで生成して設定します -->
+        <audio id="beep" preload="auto"></audio>
+      </section>
+    </section>
+
+    <!-- 分析 -->
+    <section id="tab-analyze" class="tabpanel" role="tabpanel" aria-label="分析">
+      <h2>簡易分析とアドバイス</h2>
+      <section class="card">
+        <button id="runAnalyze" class="btn primary">分析する</button>
+        <div id="analysisOutput" class="analysis"></div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>© サバゲー記録ミニアプリ</small>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
