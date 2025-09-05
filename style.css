@@ -1,243 +1,118 @@
-// ===== 既存：スコア保存キー =====
-var STORAGE_KEY = "sg_logs_v1";
-
-// ===== 既存：タブ切替 =====
-(function setupTabs() {
-  var tabs = document.querySelectorAll(".tab");
-  tabs.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      tabs.forEach(function (b) { b.classList.remove("active"); });
-      document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
-      btn.classList.add("active");
-      document.getElementById(btn.dataset.tab).classList.add("active");
-      if (btn.dataset.tab === "analysis") { renderAnalysis(); }
-      if (btn.dataset.tab === "tactics")  { setTimeout(initMapIfNeeded, 0); }
-    });
-  });
-})();
-
-// ===== 既存：データ操作（省略せずそのまま） =====
-function loadLogs(){try{var raw=localStorage.getItem(STORAGE_KEY);if(!raw)return[];var arr=JSON.parse(raw);if(!Array.isArray(arr))return[];arr.sort(function(a,b){var ad=(a.date||"")+"_"+(a.createdAt||"");var bd=(b.date||"")+"_"+(b.createdAt||"");return ad<bd?1:ad>bd?-1:0});return arr}catch(e){console.warn("Failed to parse storage:",e);return[]}}
-function saveLogs(arr){localStorage.setItem(STORAGE_KEY,JSON.stringify(arr||[]))}
-function renderStats(){var logs=loadLogs(),sumK=0,sumD=0,sumKD=0;logs.forEach(function(g){sumK+=Number(g.kills||0);sumD+=Number(g.deaths||0);sumKD+=calcKD(g.kills,g.deaths)});var n=logs.length,avgK=n?sumK/n:0,avgD=n?sumD/n:0,avgKD=n?sumKD/n:0;setText("sumKills",sumK);setText("sumDeaths",sumD);setText("overallKD",fmtKD(calcKD(sumK,sumD)));setText("avgKills",avgK.toFixed(1));setText("avgDeaths",avgD.toFixed(1));setText("avgKD",fmtKD(avgKD));var tbody=document.getElementById("logsTableBody");tbody.innerHTML="";logs.forEach(function(g){var tr=document.createElement("tr");tr.innerHTML=["<td>"+esc(g.date||"")+"</td>","<td>"+esc(g.title||"")+"</td>","<td>"+Number(g.kills||0)+"</td>","<td>"+Number(g.deaths||0)+"</td>","<td>"+fmtKD(calcKD(g.kills,g.deaths))+"</td>",'<td>'+(g.memo?'<span title="'+esc(g.memo)+'">表示</span>':'—')+"</td>",'<td><button class="danger" data-del="'+esc(g.id)+'">削除</button></td>'].join("");tbody.appendChild(tr)});tbody.querySelectorAll("button[data-del]").forEach(function(btn){btn.addEventListener("click",function(){var id=btn.getAttribute("data-del");if(confirm("この記録を削除しますか？")){var arr=loadLogs().filter(function(g){return g.id!==id});saveLogs(arr);renderStats();renderAnalysis();}})})}
-function setText(id,text){var el=document.getElementById(id);if(el)el.textContent=text}
-function esc(s){return String(s).replace(/[&<>\"']/g,function(m){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])})}
-function calcKD(k,d){k=Number(k||0);d=Number(d||0);if(d===0)return k>0?k:0;return k/d}
-function fmtKD(x){if(!isFinite(x))return"0.00";return(Math.round(x*100)/100).toFixed(2)}
-(function setupForm(){var form=document.getElementById("logForm");var date=document.getElementById("date");if(date&& !date.value){var today=new Date(),y=today.getFullYear(),m=("0"+(today.getMonth()+1)).slice(-2),d=("0"+today.getDate()).slice(-2);date.value=y+"-"+m+"-"+d}
-  if(form){form.addEventListener("submit",function(e){e.preventDefault();var data=new FormData(form);var entry={id:"g_"+Date.now()+"_"+Math.random().toString(36).slice(2),date:data.get("date")||"",title:(data.get("title")||"").trim(),kills:Number(data.get("kills")||0),deaths:Number(data.get("deaths")||0),memo:(data.get("memo")||"").trim(),createdAt:Date.now()};var arr=loadLogs();arr.push(entry);saveLogs(arr);renderStats();renderAnalysis();form.reset();if(date)date.value=date.value||entry.date;alert("保存しました！")});var kills=document.getElementById("kills"),deaths=document.getElementById("deaths"),memo=document.getElementById("memo");[kills,deaths,memo].forEach(function(el){if(!el)return;el.addEventListener("input",function(){var kd=calcKD(kills.value,deaths.value);var advice=generateAdvice(kd,memo.value);setText("liveAdvice",advice);});});}})();
-document.getElementById("clearAll")&&document.getElementById("clearAll").addEventListener("click",function(){if(confirm("すべての記録を削除しますか？この操作は元に戻せません。")){localStorage.removeItem(STORAGE_KEY);renderStats();renderAnalysis();}});
-
-// ===== 既存：タイマー（iOS音対応） =====
-var audioCtx=null,soundUnlocked=false;
-function ensureAudioUnlocked(){if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)()}if(audioCtx.state==="suspended"){audioCtx.resume()}soundUnlocked=(audioCtx.state==="running");if(soundUnlocked){try{beep(0.04,880)}catch(e){} }updateSoundStatus()}
-function updateSoundStatus(){var el=document.getElementById("soundStatus");if(el)el.textContent="音声："+(soundUnlocked?"有効":"未有効")}
-function beep(durationSec,freq){if(!audioCtx)return;var osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.type="sine";osc.frequency.setValueAtTime(freq||880,audioCtx.currentTime);gain.gain.setValueAtTime(0.0001,audioCtx.currentTime);osc.connect(gain);gain.connect(audioCtx.destination);gain.gain.exponentialRampToValueAtTime(0.2,audioCtx.currentTime+0.01);var dur=Math.max(0.01,Number(durationSec||0.2));gain.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+dur);osc.start();osc.stop(audioCtx.currentTime+dur+0.02)}
-var Timer=(function(){function T(d){this.displayEl=d;this._running=false;this._endTime=0;this._interval=null;this._beep1m=false}T.prototype.start=function(sec){this._endTime=Date.now()+sec*1000;this._beep1m=false;this._running=true;this._tick();var self=this;if(this._interval)clearInterval(this._interval);this._interval=setInterval(function(){self._tick()},200)};T.prototype.pause=function(){if(!this._running)return;var r=Math.max(0,Math.round((this._endTime-Date.now())/1000));this._running=false;clearInterval(this._interval);this._interval=null;return r};T.prototype.resume=function(r){this.start(r)};T.prototype.reset=function(){this._running=false;clearInterval(this._interval);this._interval=null;this._endTime=0;this._beep1m=false;this._render(0)};T.prototype._tick=function(){var r=Math.max(0,Math.round((this._endTime-Date.now())/1000));this._render(r);if(!this._beep1m&&r===60&&soundUnlocked){this._beep1min();this._beep1m=true}if(r<=0){clearInterval(this._interval);this._interval=null;this._running=false;if(soundUnlocked)this._finish();if(navigator.vibrate)navigator.vibrate([150,80,150])}};T.prototype._beep1min=function(){beep(0.10,1000);setTimeout(function(){beep(0.10,1000)},200)};T.prototype._finish=function(){beep(0.12,1200);setTimeout(function(){beep(0.12,1200)},200);setTimeout(function(){beep(0.20,900)},400)};T.prototype._render=function(s){this.displayEl.textContent=formatMMSS(s)};return T})(); 
-function formatMMSS(sec){var m=Math.floor(sec/60),s=sec%60;return(m<10?"0"+m:String(m))+":"+(s<10?"0"+s:String(s))}
-(function setupTimerUI(){var minutes=document.getElementById("minutes"),seconds=document.getElementById("seconds"),startBtn=document.getElementById("startTimer"),pauseBtn=document.getElementById("pauseTimer"),resetBtn=document.getElementById("resetTimer"),display=document.getElementById("timeLeft");if(!display)return;var timer=new Timer(display),pausedRemain=null;display.textContent=formatMMSS(Number(minutes.value||0)*60+Number(seconds.value||0));function totalSeconds(){var m=Math.max(0,parseInt(minutes.value||"0",10)),s=Math.max(0,parseInt(seconds.value||"0",10));s=Math.min(59,s);return m*60+s}
-function updateBtns(running){if(!startBtn||!pauseBtn||!resetBtn)return;startBtn.disabled=running&&pausedRemain===null;pauseBtn.disabled=!running&&pausedRemain===null;resetBtn.disabled=!running&&pausedRemain===null}
-minutes&&minutes.addEventListener("input",function(){display.textContent=formatMMSS(totalSeconds())});seconds&&seconds.addEventListener("input",function(){display.textContent=formatMMSS(totalSeconds())});
-startBtn&&startBtn.addEventListener("click",function(){ensureAudioUnlocked();if(pausedRemain!==null){timer.resume(pausedRemain);pausedRemain=null}else{var t=totalSeconds();if(t<=0){alert("1秒以上を設定してください。");return}timer.start(t)}updateBtns(true)});
-pauseBtn&&pauseBtn.addEventListener("click",function(){pausedRemain=timer.pause();updateBtns(false)});
-resetBtn&&resetBtn.addEventListener("click",function(){timer.reset();pausedRemain=null;display.textContent=formatMMSS(totalSeconds());updateBtns(false)});
-updateBtns(false)})();
-
-// ===== 既存：分析 =====
-function renderAnalysis(){var logs=loadLogs(),recent=logs.slice(0,5),previous=logs.slice(5,10),rl=document.getElementById("recentList"),pl=document.getElementById("previousList");if(rl)rl.innerHTML="";if(pl)pl.innerHTML="";recent.forEach(function(g){var li=document.createElement("li");li.textContent=(g.date||"—")+"  KD:"+fmtKD(calcKD(g.kills,g.deaths))+"  ("+(g.title||"")+")";rl&&rl.appendChild(li)});previous.forEach(function(g){var li=document.createElement("li");li.textContent=(g.date||"—")+"  KD:"+fmtKD(calcKD(g.kills,g.deaths))+"  ("+(g.title||"")+")";pl&&pl.appendChild(li)});var rAvg=avgKD(recent),pAvg=avgKD(previous),trendText="";if(recent.length===0)trendText="データがありません。まずは記録を追加しましょう。";else if(previous.length===0)trendText="直近平均KD: "+fmtKD(rAvg)+"（比較データ不足）";else{var diff=rAvg-pAvg;if(diff>0.05)trendText="KD比が向上しています（直近:"+fmtKD(rAvg)+" / 過去:"+fmtKD(pAvg)+"）";else if(diff<-0.05)trendText="デスが増加傾向です。立ち回りとカバー意識を見直しましょう（直近:"+fmtKD(rAvg)+" / 過去:"+fmtKD(pAvg)+"）";else trendText="大きな変化はありません（直近:"+fmtKD(rAvg)+" / 過去:"+fmtKD(pAvg)+"）"};setText("trendSummary",trendText);var allMemo=logs.map(function(g){return(g.memo||"").toLowerCase()}).join("\n"),advList=document.getElementById("keywordAdvice");if(advList)advList.innerHTML="";var adv=keywordAdvice(allMemo);if(advList){if(adv.length===0){var li=document.createElement("li");li.textContent="傾向はまだ見えません。メモに簡単な気づきを書き残すと分析精度が上がります。";advList.appendChild(li)}else{adv.forEach(function(t){var li=document.createElement("li");li.textContent=t;advList.appendChild(li)})}}}
-function avgKD(arr){if(!arr.length)return 0;var s=0;arr.forEach(function(g){s+=calcKD(g.kills,g.deaths)});return s/arr.length}
-function generateAdvice(kd,memoText){var base="";if(kd>=1.5)base="とても良いペース。前線維持と無理突を区別できています。";else if(kd>=1.0)base="安定しています。数字を維持しつつ終盤の被弾を抑えましょう。";else if(kd>0.0)base="改善余地あり。射線管理と味方のカバー範囲を意識。";else base="まずは確実に1キル、被弾時は原因メモを残すと次に活きます。";var extra=keywordAdvice(String(memoText||"").toLowerCase());return(base+(extra.length?"／"+extra[0]:""))}
-function keywordAdvice(text){var tips=[];if(!text||!text.trim())return tips;function has(ws){return ws.some(function(w){return text.indexOf(w)!==-1})}
-if(has(["右","right"]))tips.push("右展開が多い傾向。左からのカウンターに注意し、ラウンド毎にサイドを変える工夫を。");
-if(has(["左","left"]))tips.push("左展開が多い傾向。中央の圧力不足に注意し、クロスで射線を作ると有利です。");
-if(has(["ラッシュ","rush","凸"]))tips.push("ラッシュ多め。初動で2段目のカバー位置を決めておくと被弾を減らせます。");
-if(has(["待ち","芋","camp"]))tips.push("待ち中心。攻めと守りのバランス調整に、1名だけ前へ出す“疑似釣り”を。");
-if(has(["連携","報告","コール"]))tips.push("連携ワードが見られます。簡潔なコール表現を固定化するとさらに安定。");
-if(has(["カバー","cover"]))tips.push("カバー意識あり。射線が被らない“斜め45度”の位置取りを意識しましょう。");
-if(has(["リロード","弾切れ"]))tips.push("リロード起点の被弾。遮蔽物裏での角度作り、前リロードの習慣化を。");
-if(has(["裏取り","flank"]))tips.push("裏取り傾向。退路の確保とタイミング共有で成功率が上がります。");
-if(has(["視界","見えない","ライト"]))tips.push("視界・ライト課題。ピーク角度を浅めに、ライトは“一瞬点灯→オフ”で位置バレ軽減。");
-if(has(["屋外","アウトドア","森林"]))tips.push("屋外傾向。風・距離で弾道が変わるため、射程管理と一射入魂を。");
-if(has(["cqb","屋内","インドア"]))tips.push("CQB傾向。角の“先詰め”より“手前確保→段階前進”が被弾を減らします。");
-var seen={};return tips.filter(function(t){if(seen[t])return false;seen[t]=true;return true})}
-
-// ===== 戦術マップ機能（Leaflet + 画像オーバーレイ：CRS.Simple） =====
-var MAP_STORE_KEY = "sg_tactics_v1";          // 直近の状態
-var PLAN_INDEX_KEY = "sg_tactics_plans";      // プラン一覧 {name: dataURL, markers:[]}
-
-var map, imageLayer, currentImageSize=[1000,1000]; // [w,h] 画像が無い場合の仮サイズ
-var currentMarkers=[], currentType="self";
-var longPressTimer=null;
-
-function initMapIfNeeded(){
-  if(map) return;
-  var el = document.getElementById("map");
-  if(!el) return;
-
-  // 画像座標系の地図（ピクセルベース）
-  map = L.map(el, { crs: L.CRS.Simple, zoomControl: true, attributionControl:false });
-  var bounds = [[0,0],[currentImageSize[1], currentImageSize[0]]]; // [y,x] = [h,w]
-  imageLayer = L.imageOverlay("", bounds).addTo(map);
-  map.fitBounds(bounds);
-
-  // ピン配置（地図クリック）
-  map.on("click", function(e){
-    addMarker(e.latlng.lat, e.latlng.lng, currentType, "");
-    saveMapState();
-  });
-
-  // ツール群
-  document.querySelectorAll(".chip[data-type]").forEach(function(btn){
-    btn.addEventListener("click", function(){
-      currentType = btn.getAttribute("data-type");
-      // 軽いフィードバック
-      if(navigator.vibrate) navigator.vibrate(10);
-    });
-  });
-
-  // 画像読み込み
-  document.getElementById("mapImage").addEventListener("change", function(ev){
-    var file = ev.target.files && ev.target.files[0];
-    if(!file) return;
-    var reader = new FileReader();
-    reader.onload = function(){
-      var img = new Image();
-      img.onload = function(){
-        currentImageSize = [img.width, img.height];
-        // 画像サイズに合わせて座標系を張り替え
-        var b = [[0,0],[img.height, img.width]];
-        if(imageLayer) map.removeLayer(imageLayer);
-        imageLayer = L.imageOverlay(reader.result, b).addTo(map);
-        map.setMaxBounds(b);
-        map.fitBounds(b);
-        // 保存
-        saveMapState(reader.result);
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  // プラン保存/読込/消去
-  document.getElementById("savePlan").addEventListener("click", function(){
-    var name = (document.getElementById("planName").value || "").trim();
-    if(!name){ alert("プラン名を入力してください。"); return; }
-    var all = loadPlanIndex();
-    all[name] = exportPlan();            // 現在の状態を保存
-    localStorage.setItem(PLAN_INDEX_KEY, JSON.stringify(all));
-    alert("保存しました（"+name+"）");
-  });
-
-  document.getElementById("loadPlan").addEventListener("click", function(){
-    var all = loadPlanIndex();
-    var names = Object.keys(all);
-    if(names.length===0){ alert("保存済みプランがありません。"); return; }
-    var pick = prompt("読込むプラン名を入力\n\n"+names.join("\n"));
-    if(!pick || !all[pick]) return;
-    importPlan(all[pick]);
-    document.getElementById("planName").value = pick;
-  });
-
-  document.getElementById("clearPlan").addEventListener("click", function(){
-    if(confirm("マーカーと画像を全て消去しますか？")){
-      clearMarkers();
-      if(imageLayer){ map.removeLayer(imageLayer); }
-      // 空のレイヤーに戻す
-      var b = [[0,0],[currentImageSize[1], currentImageSize[0]]];
-      imageLayer = L.imageOverlay("", b).addTo(map);
-      map.fitBounds(b);
-      saveMapState(null); // 画像消去
-    }
-  });
-
-  // 起動時に前回状態を復元
-  restoreMapState();
+:root {
+  --bg: #0b0c10;
+  --card: #15171d;
+  --text: #f2f4f8;
+  --muted: #a5adba;
+  --primary: #3da9fc;
+  --danger: #ff6b6b;
+  --border: #222630;
+  --ghost: #1b1f29;
 }
 
-// マーカー追加
-function addMarker(lat, lng, type, label){
-  var klass = "pin pin-"+(type||"self");
-  var icon = L.divIcon({ className: klass });
-  var m = L.marker([lat,lng], { draggable:true, icon: icon }).addTo(map);
-
-  // クリックでラベル編集
-  m.on("click", function(){
-    var text = prompt("ラベル（空欄OK）", m._label || label || "");
-    if(text!==null){
-      m._label = text.trim();
-      m.bindTooltip(m._label, {permanent:true, direction:"top", offset:[0,-10]}).openTooltip();
-      saveMapState();
-    }
-  });
-
-  // 長押しで削除（iOS向け）
-  m.on("mousedown touchstart", function(){
-    longPressTimer = setTimeout(function(){ 
-      map.removeLayer(m); 
-      currentMarkers = currentMarkers.filter(function(x){return x!==m});
-      saveMapState();
-    }, 700);
-  });
-  m.on("mouseup mouseleave touchend", function(){ if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; } });
-
-  m.on("dragend", saveMapState);
-
-  m._type = type||"self";
-  if(label){ m._label = label; m.bindTooltip(label, {permanent:true, direction:"top", offset:[0,-10]}).openTooltip(); }
-  currentMarkers.push(m);
-  return m;
+*{ box-sizing: border-box; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
 }
 
-function clearMarkers(){
-  currentMarkers.forEach(function(m){ map.removeLayer(m); });
-  currentMarkers = [];
+.app-header{ padding:16px; }
+.app-header h1{ margin:0 0 4px; font-size:20px; }
+.app-header .sub{ margin:0; color:var(--muted); font-size:12px; }
+
+.tabs{ display:flex; gap:8px; padding:0 16px 8px; flex-wrap:wrap; }
+.tab{
+  background: var(--ghost);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.tab.active{ background: var(--primary); color:#000; border-color: transparent; font-weight:700; }
+
+.panel{ display:none; padding:12px 16px 24px; }
+.panel.active{ display:block; }
+
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  margin: 12px 0;
+}
+h2{ margin:0 0 8px; font-size:16px; }
+h3{ margin:8px 0 6px; font-size:14px; }
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.grid-3{ display:grid; grid-template-columns: repeat(3,1fr); gap:8px; }
+
+.field{ display:grid; gap:6px; }
+.field label{ color:var(--muted); font-size:12px; }
+input, textarea{
+  width:100%; padding:10px; border-radius:10px;
+  border:1px solid var(--border); background:#0e1016; color:var(--text);
 }
 
-// 保存・復元
-function exportPlan(){
-  var imgData = imageLayer && imageLayer._url ? imageLayer._url : null; // dataURL or ""
-  var markers = currentMarkers.map(function(m){
-    var ll = m.getLatLng();
-    return { lat: ll.lat, lng: ll.lng, type: m._type, label: (m._label||"") };
-  });
-  return { image: imgData, size: currentImageSize, markers: markers };
+.actions{ display:flex; gap:8px; flex-wrap:wrap; }
+button{
+  border:none; border-radius:10px; padding:10px 12px; color:var(--text);
+  background: var(--ghost);
+}
+button.primary{ background: var(--primary); color:#000; font-weight:700; }
+button.ghost{ background:#2a2f3a; }
+button.danger{ background: var(--danger); color:#000; font-weight:700; }
+
+.table-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:12px; }
+table{ width:100%; border-collapse: collapse; min-width:560px; }
+th,td{ border-bottom:1px solid var(--border); padding:8px 10px; font-size:14px; text-align:left; }
+
+.metric{ background:#0f121a; border:1px solid var(--border); border-radius:12px; padding:10px; }
+.metric .label{ color:var(--muted); font-size:12px; }
+.metric .value{ font-size:18px; font-weight:700; margin-top:4px; }
+
+.timer-display{ text-align:center; font-variant-numeric: tabular-nums; }
+#timeLeft{ display:inline-block; font-size:48px; font-weight:800; }
+
+.sound-status{ margin-top:8px; font-size:12px; color:var(--muted); }
+.tiny-note{ color:var(--muted); font-size:12px; }
+
+.palette{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+.chip{ padding:7px 10px; border-radius:999px; }
+.sep{ width:8px; }
+
+.hint{ color:var(--muted); font-size:12px; }
+
+#map{
+  width:100%; height:60vh; background:#0f121a;
+  border:1px solid var(--border); border-radius:12px; margin-top:8px;
 }
 
-function importPlan(data){
-  clearMarkers();
-  if(!data) return;
-  // 画像
-  currentImageSize = data.size || currentImageSize;
-  var b = [[0,0],[currentImageSize[1], currentImageSize[0]]];
-  if(imageLayer) map.removeLayer(imageLayer);
-  imageLayer = L.imageOverlay(data.image || "", b).addTo(map);
-  map.setMaxBounds(b);
-  map.fitBounds(b);
-  // マーカー
-  (data.markers||[]).forEach(function(it){ addMarker(it.lat,it.lng,it.type,it.label); });
-  saveMapState(); // 現在状態としても記録
+/* ---- 矢印マーカー（CSS三角形） ---- */
+.arrow{
+  width:0; height:0;
+  border-left:10px solid transparent;
+  border-right:10px solid transparent;
+  border-bottom:20px solid #fff; /* 色は下のタイプ別で上書き */
+  transform-origin: 50% 80%;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.6));
 }
+.arrow-self  { border-bottom-color:#00d1b2; }
+.arrow-ally  { border-bottom-color:#3da9fc; }
+.arrow-enemy { border-bottom-color:#ff6b6b; }
+.arrow-obj   { border-bottom-color:#ffd166; }
+.arrow-warn  { border-bottom-color:#c084fc; }
 
-function saveMapState(optionalImageData){
-  var data = exportPlan();
-  if(optionalImageData!==undefined){ data.image = optionalImageData; }
-  localStorage.setItem(MAP_STORE_KEY, JSON.stringify(data));
-}
-function restoreMapState(){
-  try{
-    var raw = localStorage.getItem(MAP_STORE_KEY);
-    if(!raw) return;
-    var data = JSON.parse(raw);
-    importPlan(data);
-  }catch(e){ console.warn(e); }
-}
+/* 既存の丸ピンも残しておく場合 */
+.pin{ width:20px; height:20px; border-radius:50%; border:2px solid rgba(0,0,0,.55); }
+.pin-self{ background:#00d1b2; } .pin-ally{ background:#3da9fc; }
+.pin-enemy{ background:#ff6b6b; } .pin-obj{ background:#ffd166; } .pin-warn{ background:#c084fc; }
 
-function loadPlanIndex(){
-  try{ return JSON.parse(localStorage.getItem(PLAN_INDEX_KEY)||"{}"); }
-  catch(e){ return {}; }
+@media (max-width:480px){
+  body{ font-size:16px; }
+  .grid-3{ grid-template-columns:1fr 1fr; }
+  #timeLeft{ font-size:42px; }
+  button{ padding:12px; }
 }
-
-// ===== 初期描画 =====
-renderStats();
-renderAnalysis();
-updateSoundStatus();
