@@ -4,16 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Sabage Logger</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Leaflet（地図表示用。フレームワークではなく軽量ライブラリ） -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="stylesheet" href="./style.css?v=5" />
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 </head>
 <body>
   <header class="app-header">
@@ -21,8 +14,8 @@
     <p class="sub">KD記録・メモ・タイマー・分析・戦術マップ（ローカル保存）</p>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Main sections">
-    <button class="tab active" data-tab="stats" aria-selected="true">成績</button>
+  <nav class="tabs">
+    <button class="tab active" data-tab="stats">成績</button>
     <button class="tab" data-tab="log">記録追加</button>
     <button class="tab" data-tab="timer">タイマー</button>
     <button class="tab" data-tab="analysis">分析</button>
@@ -71,15 +64,15 @@
         <div class="field"><label for="date">日付</label><input id="date" name="date" type="date" required /></div>
         <div class="field"><label for="title">ゲームタイトル</label><input id="title" name="title" type="text" placeholder="例：CQB午前フラッグ戦" /></div>
         <div class="grid-2">
-          <div class="field"><label for="kills">キル（K）</label><input id="kills" name="kills" type="number" inputmode="numeric" min="0" step="1" value="0" required /></div>
-          <div class="field"><label for="deaths">デス（D）</label><input id="deaths" name="deaths" type="number" inputmode="numeric" min="0" step="1" value="0" required /></div>
+          <div class="field"><label for="kills">キル（K）</label><input id="kills" name="kills" type="number" min="0" value="0" required /></div>
+          <div class="field"><label for="deaths">デス（D）</label><input id="deaths" name="deaths" type="number" min="0" value="0" required /></div>
         </div>
-        <div class="field"><label for="memo">メモ</label><textarea id="memo" name="memo" rows="4" placeholder="例：右展開多め。終盤に被弾増。連携不足。"></textarea></div>
+        <div class="field"><label for="memo">メモ</label><textarea id="memo" name="memo" rows="4" placeholder="右展開/連携/ラッシュ… などキーワード歓迎"></textarea></div>
         <div class="actions"><button type="submit" class="primary">保存</button><button type="reset" class="ghost">リセット</button></div>
       </form>
 
       <div class="card">
-        <h2>直近のアドバイス（入力中の値から）</h2>
+        <h2>直近のアドバイス</h2>
         <p id="liveAdvice" class="advice">入力すると表示されます。</p>
       </div>
     </section>
@@ -89,20 +82,17 @@
       <div class="card">
         <h2>ゲームタイマー</h2>
         <div class="grid-2">
-          <div class="field"><label for="minutes">分</label><input id="minutes" type="number" inputmode="numeric" min="0" step="1" value="10" /></div>
-          <div class="field"><label for="seconds">秒</label><input id="seconds" type="number" inputmode="numeric" min="0" max="59" step="1" value="0" /></div>
+          <div class="field"><label for="minutes">分</label><input id="minutes" type="number" min="0" value="10" /></div>
+          <div class="field"><label for="seconds">秒</label><input id="seconds" type="number" min="0" max="59" value="0" /></div>
         </div>
-        <p class="tiny-note">※iOS Safariでは<strong>開始</strong>を押すと音が有効になります（ユーザー操作必須）。</p>
-        <div class="timer-display" aria-live="polite"><span id="timeLeft">10:00</span></div>
+        <p class="tiny-note">iOS Safariは開始ボタン後に音が有効化されます。</p>
+        <div class="timer-display"><span id="timeLeft">10:00</span></div>
         <div class="actions">
           <button id="startTimer" class="primary">開始</button>
           <button id="pauseTimer" class="ghost" disabled>一時停止</button>
           <button id="resetTimer" class="danger" disabled>リセット</button>
         </div>
-        <div class="note">
-          <ul><li>残り<strong>1分</strong>でビープ音。</li><li>終了時にもビープ音（短い3連）。</li></ul>
-          <div id="soundStatus" class="sound-status">音声：未有効</div>
-        </div>
+        <div id="soundStatus" class="sound-status">音声：未有効</div>
       </div>
     </section>
 
@@ -110,16 +100,15 @@
     <section id="analysis" class="panel">
       <div class="card">
         <h2>KDトレンド</h2>
-        <p id="trendSummary">データが少ないため、十分な傾向が出ていません。</p>
+        <p id="trendSummary">データが少ないため、傾向が出ていません。</p>
         <div class="grid-2">
-          <div><h3>直近5戦</h3><ul id="recentList" class="mini-list"></ul></div>
-          <div><h3>それ以前5戦</h3><ul id="previousList" class="mini-list"></ul></div>
+          <div><h3>直近5戦</h3><ul id="recentList"></ul></div>
+          <div><h3>それ以前5戦</h3><ul id="previousList"></ul></div>
         </div>
       </div>
       <div class="card">
         <h2>メモのキーワード傾向</h2>
-        <p id="keywordSummary">記録メモからキーワードを抽出し、簡易アドバイスを表示します。</p>
-        <ul id="keywordAdvice" class="bullet"></ul>
+        <ul id="keywordAdvice"></ul>
       </div>
     </section>
 
@@ -127,14 +116,15 @@
     <section id="tactics" class="panel">
       <div class="card">
         <h2>戦術マップ</h2>
+
         <div class="grid-2">
           <div class="field">
-            <label>マップ画像を読み込み（PNG/JPG）</label>
+            <label>マップ画像（PNG/JPG）</label>
             <input id="mapImage" type="file" accept="image/*" />
-            <p class="tiny-note">手元のフィールド図・手書き画像OK。端末内にのみ保存されます。</p>
+            <p class="tiny-note">端末ローカル保存。手書きの見取り図もOK。</p>
           </div>
           <div class="field">
-            <label>プラン操作</label>
+            <label>プラン</label>
             <div class="actions">
               <input id="planName" type="text" placeholder="プラン名（例：午前フラッグ左展開）" />
               <button id="savePlan" class="primary">保存</button>
@@ -151,7 +141,22 @@
           <button class="chip" data-type="enemy">敵</button>
           <button class="chip" data-type="obj">目的地</button>
           <button class="chip" data-type="warn">注意</button>
-          <span class="tiny-note">※地図をタップで配置、ドラッグで移動、タップでラベル編集、長押しで削除</span>
+          <span class="sep"></span>
+          <span>線：</span>
+          <button class="chip" data-line="route">進路（青）</button>
+          <button class="chip" data-line="push">攻め（緑）</button>
+          <button class="chip" data-line="danger">危険（赤）</button>
+          <button id="finishLine" class="ghost">線を確定</button>
+          <button id="undoPoint" class="ghost">ひとつ戻す</button>
+          <button id="clearLines" class="danger">線を全消去</button>
+        </div>
+
+        <div class="hint">
+          <ul>
+            <li>地図タップ：マーカー配置（選択中の種類）</li>
+            <li>マーカー：ドラッグで移動／タップで「ラベル・向き（度）」編集／長押しで削除</li>
+            <li>線：線の種類を選んだ状態で、地図をタップして点を追加 →「線を確定」</li>
+          </ul>
         </div>
 
         <div id="map"></div>
@@ -160,15 +165,10 @@
   </main>
 
   <footer class="app-footer">
-    <p>データはこの端末の <code>localStorage</code> に保存されます。別端末には同期されません。</p>
+    <p>この端末の <code>localStorage</code> に保存されます（別端末とは同期されません）。</p>
   </footer>
 
-  <!-- Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-  <script src="script.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="./script.js?v=5" defer></script>
 </body>
 </html>
